@@ -1,0 +1,193 @@
+{
+	"name": "Project DDP",
+
+	"namespace": "MCRI\\ProjectDDP",
+
+	"authors": [
+		{
+			"name": "Luke Stevens",
+			"email": "luke.stevens@mcri.edu.au",
+			"institution": "Murdoch Children's Research Institute"
+		}
+	],
+
+	"description": "Enables project-specific DDP config, and facilitates DDP into a project using another REDCap project as the DDP source",
+        
+        "compatibility": {
+                "redcap-version-min": "8.3.2"
+        },
+
+	"permissions": [
+                "redcap_every_page_before_render",
+                "redcap_every_page_top",
+                "redcap_control_center",
+                "redcap_module_system_enable",
+                "redcap_module_system_disable",
+                "redcap_module_project_enable",
+                "redcap_module_project_disable",
+                "redcap_module_save_configuration"
+	],
+
+        "enable-every-page-hooks-on-system-pages": false,
+
+        "no-auth-pages": [
+                "project_ddp"
+        ],
+        
+	"links": {
+	},
+
+	"system-settings": [
+                {
+                        "key": "logging-enabled-system",
+                        "name": "Enable logging to log file in module directory",
+                        "type": "checkbox",
+                        "choices": [
+				{ "value": "y", "name": "Enable (all projects)" }
+                        ]
+                }
+        ],
+	
+	"project-settings": [
+                {
+                        "key": "enable-message",
+                        "name": "DDP can be enabled and disabled for this project using the button on the Project Setup page.",
+                        "type": "descriptive"
+                },
+                {
+			"key": "ddp-source-type",
+			"name": "DDP Source Type",
+			"required": true,
+			"type": "dropdown",
+                        "choices": [
+				{ "value": "1", "name": "REDCap project" },
+				{ "value": "2", "name": "External" }
+                        ]
+		},
+                {
+                        "key": "redcap-project",
+                        "name": "Source REDCap project",
+                        "type": "project-id",
+			"required": true,
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "1"
+                        }
+                },
+                {
+                        "key": "redcap-project-lookup-field",
+                        "name": "Source project field to use for record lookup",
+                        "type": "dropdown",
+			"required": true,
+                        "choices": [
+				{ "value": "1", "name": "Lookup in source Record ID field" },
+				{ "value": "2", "name": "Lookup in source Secondary ID field" }
+                        ],
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "1"
+                        }
+                },
+                {
+                        "key": "redcap-project-dag-filter",
+                        "name": "Return only source project records with DAG matching user's DAG name in destination project?",
+                        "type": "dropdown",
+                        "required": true,
+                        "choices": [
+				{ "value": "1", "name": "Yes: source project record DAG name must match user's DAG name" },
+				{ "value": "0", "name": "No: lookup finds any source project record irrespective of user's DAG" }
+                        ],
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "1"
+                        }
+                },
+                {
+                        "key": "redcap-project-source-permissions",
+                        "name": "What permissions are required for this project's users in the source project?",
+                        "type": "dropdown",
+                        "required": true,
+                        "choices": [
+				{ "value": "0", "name": "None: this project's users do not need to be users in the source project" },
+				{ "value": "1", "name": "Any: users need only non-expired access to source project with any permission level" },
+				{ "value": "2", "name": "Full Export: Only users with \"Full Data Set\" permission in source project can perform DDP" }
+                        ],
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "1"
+                        }
+                },
+                {
+                        "key": "logging-enabled-project",
+                        "name": "Enable logging to log file in module directory",
+                        "type": "checkbox",
+                        "choices": [
+				{ "value": "y", "name": "Enable" }
+                        ],
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "1"
+                        }
+                },
+                {
+                        "key": "project-test-secret",
+                        "name": "Override for 'secret' querystring parameter (leave blank - set only when required for testing)",
+                        "type": "text",
+			"required": false,
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "1"
+                        }
+                },
+                {
+                        "key": "external-source-name",
+                        "name": "Data source name",
+                        "type": "text",
+			"required": true,
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "2"
+                        }
+                },
+                {
+                        "key": "external-url-metadata",
+                        "name": "Metadata web service url",
+                        "type": "text",
+			"required": true,
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "2"
+                        }
+                },
+                {
+                        "key": "external-url-data",
+                        "name": "Data web service url",
+                        "type": "text",
+			"required": true,
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "2"
+                        }
+                },
+                {
+                        "key": "external-url-user",
+                        "name": "User access web service url (optional)",
+                        "type": "text",
+			"required": false,
+                        "branchingLogic": {
+                            "field": "ddp-source-type",
+                            "op": "=",
+                            "value": "2"
+                        }
+                }
+	]
+}
