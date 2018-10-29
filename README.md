@@ -53,7 +53,8 @@ For the purpose of these examples
 1. REDCap is running on the user's machine (i.e. localhost)
 2. The username being simulated is "luke1"
 3. The project id of the destination project is 167
-4. The module's project setting "override 'secret'" is set to "test"
+4. The module's project setting "override 'secret'" is set to "test"  
+
 See the **Dynamic Data Pull (DDP) - Custom** page in your REDCap Control Center for more information; especially the **Technical Specification for DDP web services (PDF)**.
 
 ### User Web Service
