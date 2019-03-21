@@ -135,7 +135,7 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
                         $requestSecret = preg_replace("/[^\w]/", "", $requestSecret);
                         $requestSecret = substr($requestSecret, 0, 32);
                         if (Session::read($requestSecret)) {
-                                $result = db_result(db_query("select 1 from redcap_log_view where user='".db_escape($requestUser)."' and session_id='".db_escape($requestSecret)."' limit 1"));
+                                $result = db_result(db_query("select 1 from redcap_log_view where user='".db_escape($requestUser)."' and session_id='".db_escape($requestSecret)."' limit 1"), 0);
                         }
                 }
                 return (bool)$result;
@@ -212,7 +212,7 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
                 $this->updateProjectConfig(false, $project_id);
         }
         
-        protected function updateProjectConfig(bool $enable, $project_id) {
+        protected function updateProjectConfig($enable, $project_id) {
                 $enable = (int)$enable;
                 $sql = "update redcap_projects set realtime_webservice_enabled = '".db_escape($enable)."', realtime_webservice_type = 'CUSTOM' where project_id = ".db_escape($project_id);
 		if (db_query($sql)) {
@@ -232,7 +232,7 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
         function redcap_module_save_configuration($project_id) {
                 
                 if ($this->sourceType == '1') {
-                        $sourceProjectNote = db_result(db_query("select custom_index_page_note from redcap_projects where project_id = ".db_escape($this->dataSourceName)));
+                        $sourceProjectNote = db_result(db_query("select custom_index_page_note from redcap_projects where project_id = ".db_escape($this->dataSourceName)), 0);
 
                         if (strpos($sourceProjectNote, 'PID '.$this->dataSourceName)===false) {
                                 $sourceProjectNote .= '<div class="yellow">This project was set as the DDP source for project "'.REDCap::escapeHtml($this->Proj->project['app_title']).'" (PID '.$this->dataSourceName.')</div>';

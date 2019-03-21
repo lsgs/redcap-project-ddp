@@ -234,9 +234,9 @@ class ProjectDDPDataService extends AbstractProjectDDPService
                 $sourcepid = db_escape($this->projectDDP->getDataSourceName());
                 $user = db_escape($this->request['user']);
                 if ($user==='') { return null; } // this is a cron-triggered fetch, no dag filtering required
-                $userdagname = db_result(db_query("select group_name from redcap_user_rights inner join redcap_data_access_groups on redcap_user_rights.group_id = redcap_data_access_groups.group_id where redcap_user_rights.project_id=$destpid and username='$user' "));
+                $userdagname = db_result(db_query("select group_name from redcap_user_rights inner join redcap_data_access_groups on redcap_user_rights.group_id = redcap_data_access_groups.group_id where redcap_user_rights.project_id=$destpid and username='$user' "), 0);
                 if (!$userdagname) { return null; } // no dag filtering required
-                $sourcedagid = db_result(db_query("select group_id from redcap_data_access_groups where project_id=$sourcepid and group_name='".db_escape($userdagname)."'"));
+                $sourcedagid = db_result(db_query("select group_id from redcap_data_access_groups where project_id=$sourcepid and group_name='".db_escape($userdagname)."'"), 0);
                 if (!$sourcedagid)  { return false; } // expected dag name not found in source project -> no results will be returned
                 return (int)$sourcedagid;
         }
