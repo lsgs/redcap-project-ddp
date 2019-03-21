@@ -10,6 +10,7 @@ namespace MCRI\ProjectDDP;
 require_once 'ProjectDDPService.php';
 require_once 'ProjectDDPLogger.php';
 
+use DynamicDataPull;
 use ExternalModules\AbstractExternalModule;
 use JsonSerializable;
 use Logging;
@@ -18,10 +19,11 @@ use Session;
 
 class ProjectDDP extends AbstractExternalModule implements JsonSerializable
 {
+        const GLOBAL_SECRET_SEED = 'hyCCRgX5q_2DlK&ws$&n=TMMljVTS6qFt|*eWM?TOvG8ebzeeT33K$d^UR+?0PWD';
         const CONFIG_VIA = '<img src="%APP_PATH_IMAGES%puzzle_small.png" style="margin:0 5px;"><span class="cc_info">Configure via "Project DDP" External Module.</span>';
         protected $page;
         protected $project_id;
-        protected $DDP;
+        protected $ddp_encryption_key;
         protected $Proj;
         protected $lang;
         protected $user_rights;
@@ -32,6 +34,7 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
         protected $dataSourceName;
         protected $useSource2ndId = false;
         protected $secret;
+        protected $global_secret;
         protected $dataUrl;
         protected $metadataUrl;
         protected $userAccessUrl;
@@ -41,29 +44,29 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
         
         public function __construct() {
                 parent::__construct();
-                global $DDP, $Proj, $lang, $user_rights;
+                global $Proj, $lang, $user_rights;
                 $this->page = PAGE;
                 $this->super_user = defined('SUPER_USER') && SUPER_USER;
                 $this->lang = &$lang; //nb. $lang is an array which is apparently not an object, so & required to assign by reference
                 $this->user_rights = &$user_rights;
+                $this->ddp_encryption_key = DynamicDataPull::DDP_ENCRYPTION_KEY;
+                $this->global_secret = encrypt(self::GLOBAL_SECRET_SEED, $this->ddp_encryption_key, true);
                 
                 if (defined('PROJECT_ID') && PROJECT_ID>0) {
-                        $this->logger = new ProjectDDPLogger(('y'==$this->getSystemSetting('logging-enabled-system')) || ('y'==$this->getProjectSetting('logging-enabled-project')));
                         $this->project_id = PROJECT_ID;
-                        $this->DDP = $DDP;
                         $this->Proj = $Proj;
                         $this->sourceType = $this->getProjectSetting('ddp-source-type');
+                        $this->logger = new ProjectDDPLogger(('y'==$this->getSystemSetting('logging-enabled-system')) || ('y'==$this->getProjectSetting('logging-enabled-project')));
                         
                         switch ($this->sourceType) {
                             case '1':
                                 $this->setSecret();
-                                $serviceUrl = $this->getUrl('project_ddp.php', true, true);//, false, true); TODO How to ensure auth for requests? Require API token for user in source project?
+                                $serviceUrl = $this->getUrl('project_ddp.php', true, true);
                                 $this->dataSourceName = $this->getProjectSetting('redcap-project');
                                 $this->useSource2ndId = ('2'===$this->getProjectSetting('redcap-project-lookup-field'));
-                                $this->dataUrl = $serviceUrl.'&secret='.$this->secret.'&service=data';
-                                $this->metadataUrl = $serviceUrl.'&secret='.$this->secret.'&service=metadata';
-                                $this->userAccessUrl = $serviceUrl.'&secret='.$this->secret.'&service=user';
-                                //$this->userAccessUrl = '';
+                                $this->dataUrl = $serviceUrl.'&secret='.rawurlencode($this->secret).'&service=data';
+                                $this->metadataUrl = $serviceUrl.'&secret='.rawurlencode($this->secret).'&service=metadata';
+                                $this->userAccessUrl = $serviceUrl.'&secret='.rawurlencode($this->secret).'&service=user';
                                 //$this->log('Create ProjectDDP: '.json_encode($this));
                                 break;
 
@@ -77,6 +80,11 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
                                 $this->Proj->realtime_webservice_enabled = false;
                                 break;
                         }
+                } else {
+                        $this->dataUrl = $this->getUrl('global_ddp.php', true, true).'&secret='.rawurlencode($this->global_secret).'&service=data';
+                        $this->metadataUrl = '';
+                        $this->userAccessUrl = '';
+                        $this->logger = new ProjectDDPLogger(('y'==$this->getSystemSetting('logging-enabled-system')));
                 }
         }
 
@@ -96,11 +104,15 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
                 return $this->useSource2ndId;
         }
         
-        public function setSecret($secret=null) {
+        public function getGlobalSecret() {
+                return $this->global_secret;
+        }
+        
+        protected function setSecret($secret=null) {
                 if (empty($secret) && isset($_COOKIE['PHPSESSID'])) {
                         $ddp = $this->DDP;
-                        $this->secret = encrypt($_COOKIE['PHPSESSID'], $ddp::DDP_ENCRYPTION_KEY, true);
-                        $decryptit = decrypt($this->secret, $ddp::DDP_ENCRYPTION_KEY, true);
+                        $this->secret = encrypt($_COOKIE['PHPSESSID'], $this->ddp_encryption_key, true);
+                        //$decryptit = decrypt($this->secret, $ddp::DDP_ENCRYPTION_KEY, true);
                 } else {
                         $this->secret = $secret;
                 }
@@ -108,16 +120,23 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
         
         public function validateSecret($requestSecret, $requestUser) {
                 //return true;
-                if ($requestSecret!=='' && $requestSecret===$this->getProjectSetting('project-test-secret')) { return true; }
-                        
-                // decrypted secret should be an active session of the user in the request post
+                $requestSecret = rawurldecode($requestSecret);
+                
                 $result = false;
-                $ddp = $this->DDP;
-                $requestSecret = decrypt($requestSecret, $ddp::DDP_ENCRYPTION_KEY, true);
-                $requestSecret = preg_replace("/[^\w]/", "", $requestSecret);
-                $requestSecret = substr($requestSecret, 0, 32);
-                if (Session::read($requestSecret)) {
-                        $result = db_result(db_query("select 1 from redcap_log_view where user='".db_escape($requestUser)."' and session_id='".db_escape($requestSecret)."' limit 1"));
+                if ($requestUser==='') {
+                        // global_ddp, cron-triggered fetch: validate secret passed in matches module global secret
+                        $result = ($this->global_secret===$requestSecret);
+                } else {
+                        // project_ddp, user-triggered fetch: validate project secret
+                        if ($requestSecret!=='' && $requestSecret===$this->getProjectSetting('project-test-secret')) { return true; }
+                        
+                        // decrypted secret should be an active session of the user in the request post
+                        $requestSecret = decrypt($requestSecret, $this->ddp_encryption_key, true);
+                        $requestSecret = preg_replace("/[^\w]/", "", $requestSecret);
+                        $requestSecret = substr($requestSecret, 0, 32);
+                        if (Session::read($requestSecret)) {
+                                $result = db_result(db_query("select 1 from redcap_log_view where user='".db_escape($requestUser)."' and session_id='".db_escape($requestSecret)."' limit 1"));
+                        }
                 }
                 return (bool)$result;
         }
@@ -128,7 +147,7 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
          * @param string $version
          */
         function redcap_module_system_enable($version) {
-                $this->updateGlobalConfig(true, '');// 'See "Project DDP" External Module');
+                $this->updateGlobalConfig(true);
         }
 
         /**
@@ -137,17 +156,27 @@ class ProjectDDP extends AbstractExternalModule implements JsonSerializable
          * @param string $version
          */
         function redcap_module_system_disable($version) {
-                $this->updateGlobalConfig(false, '');
+                $this->updateGlobalConfig(false);
         }
         
-        protected function updateGlobalConfig(bool $enable, string $ref) {
-                $globalSettings = array(
-                    'realtime_webservice_global_enabled' => (int)$enable,
-                    'realtime_webservice_source_system_custom_name' => $ref,
-                    'realtime_webservice_url_data' => $ref,
-                    'realtime_webservice_url_metadata' => $ref,
-                    'realtime_webservice_url_user_access' => $ref
-                );
+        protected function updateGlobalConfig($enable) {
+                if ($enable) {
+                        $globalSettings = array(
+                            'realtime_webservice_global_enabled' => (int)$enable,
+                            'realtime_webservice_source_system_custom_name' => 'Project DDP External Module',
+                            'realtime_webservice_url_data' => $this->dataUrl,
+                            'realtime_webservice_url_metadata' => $this->metadataUrl,
+                            'realtime_webservice_url_user_access' => $this->userAccessUrl
+                        );
+                } else {
+                        $globalSettings = array(
+                            'realtime_webservice_global_enabled' => (int)$enable,
+                            'realtime_webservice_source_system_custom_name' => '',
+                            'realtime_webservice_url_data' => '',
+                            'realtime_webservice_url_metadata' => '',
+                            'realtime_webservice_url_user_access' => ''
+                        );
+                }
                 foreach ($globalSettings as $this_field=>$this_value) {
         		$sql = "UPDATE redcap_config SET value = '".db_escape($this_value)."' WHERE field_name = '".db_escape($this_field)."'";
                         $q = db_query($sql);

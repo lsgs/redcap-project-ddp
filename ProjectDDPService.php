@@ -145,14 +145,16 @@ class ProjectDDPMetadataService extends AbstractProjectDDPService
                 $result = array();
                 
                 foreach ($dd as $fieldName => $attr) {
-                        $result[] = array(
-                            "field"=>$fieldName,
-                            "label"=>$attr['field_label'],
-                            "description"=>trim("{$attr['field_type']} {$attr['text_validation_type_or_show_slider_number']} {$attr['select_choices_or_calculations']} {$attr['field_note']}"),
-                            "temporal"=>(array_key_exists($attr['form_name'], $temporalForms)) ? 1 : 0,
-                            "category"=>$attr['form_name'],
-                            "identifier"=>($fieldName===$this->lookupIdField) ? '1' : '0' // "identifier" as in "record id candidate", not as in "field contains PHI"
-                        );
+                        if ($attr['field_type'] !== 'descriptive') {
+                                $result[] = array(
+                                    "field"=>$fieldName,
+                                    "label"=>$attr['field_label'],
+                                    "description"=>trim("{$attr['field_type']} {$attr['text_validation_type_or_show_slider_number']} {$attr['select_choices_or_calculations']} {$attr['field_note']}"),
+                                    "temporal"=>(array_key_exists($attr['form_name'], $temporalForms)) ? 1 : 0,
+                                    "category"=>$attr['form_name'],
+                                    "identifier"=>($fieldName===$this->lookupIdField) ? '1' : '0' // "identifier" as in "record id candidate", not as in "field contains PHI"
+                                );
+                        }
                 }
                 return $result;
         }
@@ -167,8 +169,9 @@ class ProjectDDPDataService extends AbstractProjectDDPService
         public function getResult() {
                 $result = array();
                 
-                // check user auth separately yo user auth service which does not operate for preview and only once per redcap auth session
-                if (!$this->checkUserAuth()) { return $result; }
+                // check user auth separately from user auth service which does not operate for preview and only once per redcap auth session
+                // user is empty string for cron-triggered fetches
+                if ($this->request['user']!=='' && !$this->checkUserAuth()) { return $result; }
                 
                 if (!is_numeric($this->request['id']) || !is_array($this->request['fields'])) { return $result; }
                 
@@ -230,6 +233,7 @@ class ProjectDDPDataService extends AbstractProjectDDPService
                 $destpid = db_escape($this->projectDDP->getProj()->project_id);
                 $sourcepid = db_escape($this->projectDDP->getDataSourceName());
                 $user = db_escape($this->request['user']);
+                if ($user==='') { return null; } // this is a cron-triggered fetch, no dag filtering required
                 $userdagname = db_result(db_query("select group_name from redcap_user_rights inner join redcap_data_access_groups on redcap_user_rights.group_id = redcap_data_access_groups.group_id where redcap_user_rights.project_id=$destpid and username='$user' "));
                 if (!$userdagname) { return null; } // no dag filtering required
                 $sourcedagid = db_result(db_query("select group_id from redcap_data_access_groups where project_id=$sourcepid and group_name='".db_escape($userdagname)."'"));
