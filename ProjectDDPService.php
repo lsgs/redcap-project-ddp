@@ -206,10 +206,10 @@ class ProjectDDPDataService extends AbstractProjectDDPService
 
                 reset($this->request['fields']);
                 foreach ($this->request['fields'] as $fld) {
-                    
-                        if (array_key_exists('timestamp_min', $fld)) {
+
+                       $formFieldIsOn = $this->sourceProject->metadata[$fld['field']]['form_name'];
+                        if (array_key_exists($formFieldIsOn,$temporalForms)) {
                                 // field is temporal - get value between min and max timestamp
-                                $formFieldIsOn = $this->sourceProject->metadata[$fld['field']]['form_name'];
                                 $stampField = $temporalForms[$formFieldIsOn];
                                 $fldResult = $this->getRangeValue($recordData, $fld['field'], $stampField, $fld['timestamp_min'], $fld['timestamp_max']);
                         } else {
